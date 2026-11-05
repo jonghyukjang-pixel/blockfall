@@ -8,7 +8,7 @@
 |---|---|
 | `blockfall.html` | 게임 (Vercel에서 `/`로 제공) |
 | `api/scores.js` | Vercel 서버리스 함수 — 점수 API |
-| `lib/db.js` | Supabase REST 연동 (서버 전용 secret key 사용) |
+| `api/_lib/db.js` | Supabase REST 연동 (서버 전용 secret key 사용) |
 | `supabase/migrations/` | `scores` 테이블 스키마 |
 | `server.js` | 로컬 개발 서버 (`.env.local`의 Supabase 키 사용) |
 

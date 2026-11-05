@@ -1,6 +1,6 @@
 // BLOCKFALL local dev server
 // - Serves the game (blockfall.html)
-// - /api/scores uses the same Supabase code as the Vercel function (lib/db.js)
+// - /api/scores uses the same Supabase code as the Vercel function (api/_lib/db.js)
 // Reads SUPABASE_URL / SUPABASE_SECRET_KEY from .env.local if present.
 
 const http = require('http');
@@ -18,7 +18,7 @@ if (fs.existsSync(envFile)) {
   }
 }
 
-const { topScores, addScore } = require('./lib/db');
+const { topScores, addScore } = require('./api/_lib/db');
 const PORT = process.env.PORT || 3000;
 
 function sendJson(res, status, body) {

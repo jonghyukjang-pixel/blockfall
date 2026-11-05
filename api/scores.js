@@ -1,7 +1,7 @@
 // Vercel serverless function: /api/scores
 //   GET  /api/scores?limit=10  -> top scores
 //   POST /api/scores           -> { name, score, lines, level }
-const { topScores, addScore } = require('../lib/db');
+const { topScores, addScore } = require('./_lib/db');
 
 module.exports = async (req, res) => {
   try {
