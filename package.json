@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "description": "BLOCKFALL game + score API (Vercel + Supabase)",
-  "main": "server.js",
   "engines": {
     "node": ">=20"
   },
