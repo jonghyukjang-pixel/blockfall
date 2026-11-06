@@ -108,6 +108,9 @@
   .notes-empty { margin: 0; font-size: 13px; color: var(--muted); }
   .notes-past-btn { align-self: center; padding: 7px 14px; font-size: 13px; }
   .notes-past { display: flex; flex-direction: column; gap: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .week { display: flex; flex-direction: column; gap: 12px; }
+  .week + .week { padding-top: 12px; border-top: 1px solid var(--line); }
+  .week-title { margin: 0; font-size: 12px; color: var(--accent); font-weight: 600; letter-spacing: .5px; }
   .modal-card > button { align-self: center; min-width: 120px; }
   .modal-hint { margin: 0; text-align: center; font-size: 11px; color: var(--muted); }
   .loader-press { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); animation: blink 1.1s infinite; }
@@ -885,6 +888,9 @@
   // Newest first. When shipping fixes (e.g. from GitHub issues), add a new entry at the top.
   // tag: 'fix' 수정 | 'add' 추가 | 'chg' 변경
   const CHANGELOG = [
+    { version: '1.9', date: '2026-11-06', items: [
+      ['chg', '업데이트 내역: 최근 5건까지만 보여주고, 나머지는 "이전 내역 보기"에서 주별로 정리'],
+    ]},
     { version: '1.8', date: '2026-11-06', items: [
       ['chg', '업데이트 내역: 이번 달 항목이 5개 이하면 이번 달 전체, 넘으면 이번 주 것만 표시'],
     ]},
@@ -929,48 +935,71 @@
         <ul>${n.items.map(([t, txt]) => `<li><span class="tag ${t}">${TAG_LABEL[t]}</span>${escapeHtml(txt)}</li>`).join('')}</ul>
       </section>`;
   const parseDay = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const DAY = ['일', '월', '화', '수', '목', '금', '토'];
+  const fmtDay = d => `${d.getMonth() + 1}/${d.getDate()}(${DAY[d.getDay()]})`;
+  const mondayOf = d => { const m = new Date(d.getFullYear(), d.getMonth(), d.getDate()); m.setDate(m.getDate() - (m.getDay() + 6) % 7); return m; };
 
-  // This month's notes if they add up to NOTES_MONTH_LIMIT items or fewer; otherwise only this week's (Mon–Sun).
-  const NOTES_MONTH_LIMIT = 5;
-  // Everything else goes behind "지난 내역 보기".
+  // Group entries (already newest-first) into Mon–Sun weeks, each with a heading
+  function weeksHtml(entries) {
+    const groups = [];
+    for (const n of entries) {
+      const mon = mondayOf(parseDay(n.date)).getTime();
+      let g = groups.find(x => x.mon === mon);
+      if (!g) groups.push(g = { mon, list: [] });
+      g.list.push(n);
+    }
+    return groups.map(g => {
+      const mon = new Date(g.mon), sun = new Date(g.mon); sun.setDate(mon.getDate() + 6);
+      return `<div class="week"><h4 class="week-title">${mon.getFullYear()}년 ${fmtDay(mon)} ~ ${fmtDay(sun)}</h4>${g.list.map(noteHtml).join('')}</div>`;
+    }).join('');
+  }
+
+  // This month has NOTES_LIMIT items or fewer → show all of this month.
+  // Otherwise show only the newest versions up to NOTES_LIMIT items (at least one version);
+  // everything else goes behind "이전 내역 보기", grouped by week.
+  const NOTES_LIMIT = 5;
   function splitNotes(today) {
-    const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const thisMonth = CHANGELOG.filter(n => {
       const d = parseDay(n.date);
-      return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth();
+      return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
     });
-    const monthItems = thisMonth.reduce((sum, n) => sum + n.items.length, 0);
+    const monthItems = thisMonth.reduce((s, n) => s + n.items.length, 0);
     let current, scope;
-    if (monthItems <= NOTES_MONTH_LIMIT) {
-      current = thisMonth; scope = `이번 달 업데이트 (${t.getMonth() + 1}월)`;
+    if (monthItems <= NOTES_LIMIT) {
+      current = thisMonth;
+      scope = `이번 달 업데이트 (${today.getMonth() + 1}월 · ${monthItems}건)`;
     } else {
-      const monday = new Date(t); monday.setDate(t.getDate() - (t.getDay() + 6) % 7);
-      const nextMonday = new Date(monday); nextMonday.setDate(monday.getDate() + 7);
-      current = CHANGELOG.filter(n => { const d = parseDay(n.date); return d >= monday && d < nextMonday; });
-      const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`;
-      const sunday = new Date(nextMonday); sunday.setDate(nextMonday.getDate() - 1);
-      scope = `이번 주 업데이트 (${fmt(monday)} ~ ${fmt(sunday)})`;
+      current = [];
+      let count = 0;
+      for (const n of CHANGELOG) {
+        if (current.length && count + n.items.length > NOTES_LIMIT) break;
+        current.push(n); count += n.items.length;
+      }
+      scope = `최근 업데이트 ${count}건 (이번 달 전체 ${monthItems}건)`;
     }
     return { scope, current, past: CHANGELOG.filter(n => !current.includes(n)) };
   }
 
   function renderNotes() {
     const { scope, current, past } = splitNotes(new Date());
+    const pastItems = past.reduce((s, n) => s + n.items.length, 0);
+    const label = `이전 내역 보기 (${pastItems}건)`;
     $('notesList').innerHTML = `
       <p class="notes-scope">${scope}</p>
-      ${current.length ? current.map(noteHtml).join('') : '<p class="notes-empty">새 업데이트가 없어요</p>'}
+      ${current.length ? current.map(noteHtml).join('') : '<p class="notes-empty">이번 달 업데이트가 없어요</p>'}
       ${past.length ? `
-        <button type="button" id="notesPastBtn" class="secondary notes-past-btn">지난 내역 보기 (${past.length})</button>
-        <div id="notesPast" class="notes-past hidden">${past.map(noteHtml).join('')}</div>` : ''}`;
+        <button type="button" id="notesPastBtn" class="secondary notes-past-btn">${label}</button>
+        <div id="notesPast" class="notes-past hidden">${weeksHtml(past)}</div>` : ''}`;
     const btn = $('notesPastBtn');
     if (btn) btn.addEventListener('click', () => {
       const box = $('notesPast');
       const show = box.classList.contains('hidden');
       box.classList.toggle('hidden', !show);
-      btn.textContent = show ? '지난 내역 숨기기' : `지난 내역 보기 (${past.length})`;
+      btn.textContent = show ? '이전 내역 숨기기' : label;
       if (show) box.scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
   }
+
   const notesOpen = () => !notesModal.classList.contains('hidden');
   function openNotes() {
     renderNotes();
