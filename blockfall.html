@@ -76,6 +76,32 @@
   .loader-bar { width: 240px; max-width: 80vw; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
   #loaderFill { height: 100%; width: 0; background: var(--accent); transition: width .2s linear; }
   .loader-status { margin: 0; color: var(--muted); font-size: 13px; }
+  .notes-btn {
+    background: transparent; color: var(--muted); border: 1px solid var(--line);
+    padding: 7px 14px; font-size: 13px; font-weight: 600;
+  }
+  .notes-btn:hover { color: var(--text); border-color: var(--accent); filter: none; }
+  .modal {
+    position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: rgba(5, 7, 14, .72);
+  }
+  .modal-card {
+    width: 100%; max-width: 420px; max-height: 80vh; display: flex; flex-direction: column; gap: 12px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.5); cursor: default;
+  }
+  .modal-card h2 { margin: 0; font-size: 18px; color: var(--accent); letter-spacing: 1px; }
+  .notes-list { overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
+  .note h3 { margin: 0 0 6px; font-size: 14px; display: flex; gap: 8px; align-items: baseline; }
+  .note h3 .date { color: var(--muted); font-size: 12px; font-weight: 400; }
+  .note h3 .new { background: var(--accent); color: #0a0d18; font-size: 10px; padding: 1px 6px; border-radius: 4px; }
+  .note ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; color: var(--text); }
+  .note li .tag { font-size: 11px; font-weight: 700; margin-right: 4px; }
+  .note li .tag.fix { color: #ff7a8a; }
+  .note li .tag.add { color: #8fe388; }
+  .note li .tag.chg { color: #ffd36e; }
+  .modal-card > button { align-self: center; min-width: 120px; }
+  .modal-hint { margin: 0; text-align: center; font-size: 11px; color: var(--muted); }
   .loader-press { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); animation: blink 1.1s infinite; }
   @keyframes blink { 50% { opacity: .25; } }
   .top-box { width: 210px; background: rgba(24, 28, 48, .9); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
@@ -120,6 +146,16 @@
   <div class="loader-bar" id="loaderBar"><div id="loaderFill"></div></div>
   <p class="loader-status" id="loaderStatus">로딩 중…</p>
   <p class="loader-press hidden" id="loaderPress">Enter 키를 누르거나 화면을 클릭하면 게임이 시작됩니다</p>
+  <button type="button" id="notesBtn" class="notes-btn hidden">📋 업데이트 내역</button>
+</div>
+
+<div id="notesModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="notesTitle">
+  <div class="modal-card">
+    <h2 id="notesTitle">업데이트 내역</h2>
+    <div id="notesList" class="notes-list"></div>
+    <button type="button" id="notesClose">확인</button>
+    <p class="modal-hint">Enter / Esc 키로도 닫을 수 있어요</p>
+  </div>
 </div>
 
 <div class="wrap">
@@ -782,8 +818,72 @@
     $('loaderBar').classList.add('hidden');
     $('loaderStatus').textContent = ok ? '준비 완료' : '랭킹 서버에 연결할 수 없어요 (점수 저장 불가)';
     $('loaderPress').classList.remove('hidden');
+    $('notesBtn').classList.remove('hidden');
     state = 'ready';
+    // show the update notes once per new version
+    let seen = null;
+    try { seen = localStorage.getItem('blockfall-notes-seen'); } catch (e) {}
+    if (seen !== CHANGELOG[0].version) openNotes();
   }
+
+  // ---------- Update notes modal ----------
+  // Newest first. When shipping fixes (e.g. from GitHub issues), add a new entry at the top.
+  // tag: 'fix' 수정 | 'add' 추가 | 'chg' 변경
+  const CHANGELOG = [
+    { version: '1.4', date: '2026-11-05', items: [
+      ['add', '온라인 랭킹 — 이제 어디서 플레이해도 같은 랭킹에 점수가 기록돼요'],
+      ['add', '로딩 화면에 업데이트 내역 안내'],
+      ['fix', '페이지 주소로 서버 내부 파일이 열리던 문제 수정'],
+    ]},
+    { version: '1.3', date: '2026-11-05', items: [
+      ['add', '로딩 화면을 마우스로 클릭해도 게임 시작'],
+      ['chg', '점수 저장 후에는 이름 입력칸과 저장 버튼을 숨기고 "다시 하기"만 표시'],
+      ['add', '저장 후 10초 동안 "다시 하기"를 누르지 않으면 로딩 화면으로 복귀'],
+    ]},
+    { version: '1.2', date: '2026-11-05', items: [
+      ['add', '게임 시작 전 로딩 화면 (Enter로 시작)'],
+      ['add', '게임 오버 화면에 TOP 5 랭킹 표시'],
+    ]},
+    { version: '1.1', date: '2026-11-05', items: [
+      ['add', '점수 저장과 랭킹 (오른쪽 RANKING 패널)'],
+      ['fix', '게임 오버 직후 누르던 Space가 이름 입력칸에 들어가던 문제 수정'],
+      ['add', '줄을 지운 뒤 남은 블록이 빈칸으로 떨어지고, 새로 채워진 줄은 연쇄로 삭제'],
+      ['add', '재시작 버튼과 R 키'],
+    ]},
+  ];
+  const TAG_LABEL = { fix: '수정', add: '추가', chg: '변경' };
+  const notesModal = $('notesModal');
+
+  function renderNotes() {
+    $('notesList').innerHTML = CHANGELOG.map((n, i) => `
+      <section class="note">
+        <h3>v${n.version} <span class="date">${n.date}</span>${i === 0 ? '<span class="new">NEW</span>' : ''}</h3>
+        <ul>${n.items.map(([t, txt]) => `<li><span class="tag ${t}">${TAG_LABEL[t]}</span>${escapeHtml(txt)}</li>`).join('')}</ul>
+      </section>`).join('');
+  }
+  const notesOpen = () => !notesModal.classList.contains('hidden');
+  function openNotes() {
+    renderNotes();
+    notesModal.classList.remove('hidden');
+    $('notesList').scrollTop = 0;
+  }
+  function closeNotes() {
+    notesModal.classList.add('hidden');
+    try { localStorage.setItem('blockfall-notes-seen', CHANGELOG[0].version); } catch (e) {}
+  }
+  $('notesClose').addEventListener('click', closeNotes);
+  notesModal.addEventListener('click', e => { if (e.target === notesModal) closeNotes(); });
+  // the notes button sits on the loader, which starts the game on pointerdown — keep that from firing
+  $('notesBtn').addEventListener('pointerdown', e => e.stopPropagation());
+  $('notesBtn').addEventListener('click', e => { e.stopPropagation(); openNotes(); });
+  // capture phase so Enter/Esc close the modal instead of starting the game
+  document.addEventListener('keydown', e => {
+    if (!notesOpen()) return;
+    if (e.key === 'Enter' || e.key === 'Escape') closeNotes();
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+
   runLoader();
 
   requestAnimationFrame(loop);
