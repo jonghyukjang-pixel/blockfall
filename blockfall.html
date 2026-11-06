@@ -885,6 +885,9 @@
   // Newest first. When shipping fixes (e.g. from GitHub issues), add a new entry at the top.
   // tag: 'fix' 수정 | 'add' 추가 | 'chg' 변경
   const CHANGELOG = [
+    { version: '1.8', date: '2026-11-06', items: [
+      ['chg', '업데이트 내역: 이번 달 항목이 5개 이하면 이번 달 전체, 넘으면 이번 주 것만 표시'],
+    ]},
     { version: '1.7', date: '2026-11-06', items: [
       ['chg', '업데이트 내역은 최근 것만 보여주고, 이전 내역은 "지난 내역 보기"로 분리'],
     ]},
@@ -927,7 +930,8 @@
       </section>`;
   const parseDay = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 
-  // This month's notes if they add up to 10 items or fewer; otherwise only this week's (Mon–Sun).
+  // This month's notes if they add up to NOTES_MONTH_LIMIT items or fewer; otherwise only this week's (Mon–Sun).
+  const NOTES_MONTH_LIMIT = 5;
   // Everything else goes behind "지난 내역 보기".
   function splitNotes(today) {
     const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -937,7 +941,7 @@
     });
     const monthItems = thisMonth.reduce((sum, n) => sum + n.items.length, 0);
     let current, scope;
-    if (monthItems <= 10) {
+    if (monthItems <= NOTES_MONTH_LIMIT) {
       current = thisMonth; scope = `이번 달 업데이트 (${t.getMonth() + 1}월)`;
     } else {
       const monday = new Date(t); monday.setDate(t.getDate() - (t.getDay() + 6) % 7);
