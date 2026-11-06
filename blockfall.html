@@ -47,6 +47,9 @@
     padding: 10px 22px; font-size: 15px; font-weight: 700; cursor: pointer;
   }
   button:hover { filter: brightness(1.1); }
+  button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  button.secondary:hover { border-color: var(--accent); filter: none; }
+  button:disabled { opacity: .4; cursor: default; filter: none; }
   .keys { font-size: 12px; color: var(--muted); line-height: 1.8; }
   .keys b { color: var(--text); font-weight: 600; }
   .touch { display: none; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
@@ -169,6 +172,7 @@
     <div class="box"><h3>LEVEL</h3><div class="stat" id="level">1</div></div>
     <div class="box"><h3>LINES</h3><div class="stat" id="lines">0</div></div>
     <button id="restartBtn" title="R 키">↻ 재시작</button>
+    <button id="pauseBtn" class="secondary" title="P / Esc 키" disabled>⏸ 일시정지</button>
   </div>
 
   <div>
@@ -187,6 +191,7 @@
           <p id="saveMsg"></p>
         </form>
         <button id="startBtn">시작하기</button>
+        <button id="mainBtn" class="secondary hidden" title="M 키">⌂ 메인 화면으로</button>
         <p style="font-size:12px" id="startHint">Enter 키로도 시작</p>
       </div>
     </div>
@@ -215,7 +220,8 @@
         <b>Z</b> 반시계 회전<br>
         <b>C / Shift</b> 홀드<br>
         <b>P / Esc</b> 일시정지<br>
-        <b>R</b> 재시작
+        <b>R</b> 재시작<br>
+        <b>M</b> 메인 화면 (게임 오버 시)
       </div>
     </div>
     <div class="box">
@@ -559,7 +565,9 @@
     overlayMsg.innerHTML = `게임 오버<br>점수: <b style="color:#e8eaf6">${score}</b>`;
     startBtn.textContent = '다시 하기';
     overlay.querySelector('h1').textContent = 'GAME OVER';
-    $('startHint').textContent = 'R 키로 다시 시작';
+    $('startHint').textContent = 'R 키로 다시 시작 · M 키로 메인 화면';
+    $('mainBtn').classList.remove('hidden');
+    updatePauseBtn();
     $('topBox').classList.remove('hidden');
     lastSaved = null;
     loadRanking();
@@ -576,10 +584,12 @@
     overlay.querySelector('h1').textContent = 'BLOCKFALL';
     saveForm.classList.add('hidden');
     $('topBox').classList.add('hidden');
+    $('mainBtn').classList.add('hidden');
     resetGame();
     state = 'playing';
     overlay.classList.add('hidden');
     lastTime = performance.now();
+    updatePauseBtn();
   }
 
   function togglePause() {
@@ -588,12 +598,31 @@
       overlay.querySelector('h1').textContent = 'PAUSED';
       overlayMsg.textContent = 'P 또는 Esc 로 계속';
       startBtn.textContent = '계속하기';
+      $('startHint').textContent = '';
       overlay.classList.remove('hidden');
     } else if (state === 'paused') {
       state = 'playing';
       overlay.classList.add('hidden');
       lastTime = performance.now();
     }
+    updatePauseBtn();
+  }
+
+  // Side-panel pause button: usable only while a game is running
+  function updatePauseBtn() {
+    const b = $('pauseBtn');
+    b.disabled = !(state === 'playing' || state === 'paused');
+    b.textContent = state === 'paused' ? '▶ 계속하기' : '⏸ 일시정지';
+  }
+
+  // Leave the game and go back to the loading (main) screen
+  function goToMain() {
+    if (state !== 'over') return;
+    stopReturnCountdown();
+    for (const k in keys) keys[k] = false;
+    rep.dir = 0;
+    runLoader();
+    updatePauseBtn();
   }
 
   // ---------- Drawing ----------
@@ -761,6 +790,13 @@
   startBtn.addEventListener('click', () => { if (state === 'paused') togglePause(); else start(); });
   const restartBtn = document.getElementById('restartBtn');
   restartBtn.addEventListener('click', () => { restartBtn.blur(); start(); });
+  const pauseBtn = $('pauseBtn');
+  pauseBtn.addEventListener('click', () => { pauseBtn.blur(); togglePause(); });
+  $('mainBtn').addEventListener('click', () => goToMain());
+  document.addEventListener('keydown', e => {
+    if (typing(e)) return;
+    if ((e.key === 'm' || e.key === 'M') && !e.repeat && state === 'over') goToMain();
+  });
   document.addEventListener('keydown', e => {
     if (typing(e)) return;
     if ((e.key === 'r' || e.key === 'R') && !e.repeat && (state === 'playing' || state === 'paused' || state === 'over')) {
@@ -830,6 +866,11 @@
   // Newest first. When shipping fixes (e.g. from GitHub issues), add a new entry at the top.
   // tag: 'fix' 수정 | 'add' 추가 | 'chg' 변경
   const CHANGELOG = [
+    { version: '1.5', date: '2026-11-06', items: [
+      ['add', '게임 오버 화면에 "메인 화면으로" 버튼 (M 키)'],
+      ['add', '게임 중 왼쪽 패널에 일시정지 / 계속하기 버튼'],
+      ['fix', '일시정지 화면에 "R 키로 다시 시작" 안내가 잘못 남아 있던 문제 수정'],
+    ]},
     { version: '1.4', date: '2026-11-05', items: [
       ['add', '온라인 랭킹 — 이제 어디서 플레이해도 같은 랭킹에 점수가 기록돼요'],
       ['add', '로딩 화면에 업데이트 내역 안내'],
