@@ -104,6 +104,10 @@
   .note li .tag.fix { color: #ff7a8a; }
   .note li .tag.add { color: #8fe388; }
   .note li .tag.chg { color: #ffd36e; }
+  .notes-scope { margin: 0; font-size: 12px; color: var(--muted); }
+  .notes-empty { margin: 0; font-size: 13px; color: var(--muted); }
+  .notes-past-btn { align-self: center; padding: 7px 14px; font-size: 13px; }
+  .notes-past { display: flex; flex-direction: column; gap: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
   .modal-card > button { align-self: center; min-width: 120px; }
   .modal-hint { margin: 0; text-align: center; font-size: 11px; color: var(--muted); }
   .loader-press { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); animation: blink 1.1s infinite; }
@@ -881,6 +885,9 @@
   // Newest first. When shipping fixes (e.g. from GitHub issues), add a new entry at the top.
   // tag: 'fix' 수정 | 'add' 추가 | 'chg' 변경
   const CHANGELOG = [
+    { version: '1.7', date: '2026-11-06', items: [
+      ['chg', '업데이트 내역은 최근 것만 보여주고, 이전 내역은 "지난 내역 보기"로 분리'],
+    ]},
     { version: '1.6', date: '2026-11-06', items: [
       ['add', '시작 화면에서 현재 랭킹 TOP 10을 바로 확인'],
     ]},
@@ -913,12 +920,52 @@
   const TAG_LABEL = { fix: '수정', add: '추가', chg: '변경' };
   const notesModal = $('notesModal');
 
-  function renderNotes() {
-    $('notesList').innerHTML = CHANGELOG.map((n, i) => `
+  const noteHtml = n => `
       <section class="note">
-        <h3>v${n.version} <span class="date">${n.date}</span>${i === 0 ? '<span class="new">NEW</span>' : ''}</h3>
+        <h3>v${n.version} <span class="date">${n.date}</span>${n === CHANGELOG[0] ? '<span class="new">NEW</span>' : ''}</h3>
         <ul>${n.items.map(([t, txt]) => `<li><span class="tag ${t}">${TAG_LABEL[t]}</span>${escapeHtml(txt)}</li>`).join('')}</ul>
-      </section>`).join('');
+      </section>`;
+  const parseDay = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+
+  // This month's notes if they add up to 10 items or fewer; otherwise only this week's (Mon–Sun).
+  // Everything else goes behind "지난 내역 보기".
+  function splitNotes(today) {
+    const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const thisMonth = CHANGELOG.filter(n => {
+      const d = parseDay(n.date);
+      return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth();
+    });
+    const monthItems = thisMonth.reduce((sum, n) => sum + n.items.length, 0);
+    let current, scope;
+    if (monthItems <= 10) {
+      current = thisMonth; scope = `이번 달 업데이트 (${t.getMonth() + 1}월)`;
+    } else {
+      const monday = new Date(t); monday.setDate(t.getDate() - (t.getDay() + 6) % 7);
+      const nextMonday = new Date(monday); nextMonday.setDate(monday.getDate() + 7);
+      current = CHANGELOG.filter(n => { const d = parseDay(n.date); return d >= monday && d < nextMonday; });
+      const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`;
+      const sunday = new Date(nextMonday); sunday.setDate(nextMonday.getDate() - 1);
+      scope = `이번 주 업데이트 (${fmt(monday)} ~ ${fmt(sunday)})`;
+    }
+    return { scope, current, past: CHANGELOG.filter(n => !current.includes(n)) };
+  }
+
+  function renderNotes() {
+    const { scope, current, past } = splitNotes(new Date());
+    $('notesList').innerHTML = `
+      <p class="notes-scope">${scope}</p>
+      ${current.length ? current.map(noteHtml).join('') : '<p class="notes-empty">새 업데이트가 없어요</p>'}
+      ${past.length ? `
+        <button type="button" id="notesPastBtn" class="secondary notes-past-btn">지난 내역 보기 (${past.length})</button>
+        <div id="notesPast" class="notes-past hidden">${past.map(noteHtml).join('')}</div>` : ''}`;
+    const btn = $('notesPastBtn');
+    if (btn) btn.addEventListener('click', () => {
+      const box = $('notesPast');
+      const show = box.classList.contains('hidden');
+      box.classList.toggle('hidden', !show);
+      btn.textContent = show ? '지난 내역 숨기기' : `지난 내역 보기 (${past.length})`;
+      if (show) box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
   }
   const notesOpen = () => !notesModal.classList.contains('hidden');
   function openNotes() {
